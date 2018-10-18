@@ -14,7 +14,7 @@ from yolo3.utils import get_random_data
 
 
 def _main():
-    annotation_path = 'train.txt'
+    annotation_path = './train_DOTA.txt'
     log_dir = 'logs/000/'
     classes_path = 'model_data/voc_classes.txt'
     anchors_path = 'model_data/yolo_anchors.txt'
@@ -23,14 +23,7 @@ def _main():
     anchors = get_anchors(anchors_path)
 
     input_shape = (416,416) # multiple of 32, hw
-
-    is_tiny_version = len(anchors)==6 # default setting
-    if is_tiny_version:
-        model = create_tiny_model(input_shape, anchors, num_classes,
-            freeze_body=2, weights_path='model_data/tiny_yolo_weights.h5')
-    else:
-        model = create_model(input_shape, anchors, num_classes,
-            freeze_body=2, weights_path='model_data/yolo_weights.h5') # make sure you know what you freeze
+    model = create_model(input_shape, anchors, num_classes, freeze_body=2, weights_path='model_data/yolo_weights.h5') # make sure you know what you freeze
 
     logging = TensorBoard(log_dir=log_dir)
     checkpoint = ModelCheckpoint(log_dir + 'ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.h5',
@@ -106,14 +99,17 @@ def create_model(input_shape, anchors, num_classes, load_pretrained=True, freeze
             weights_path='model_data/yolo_weights.h5'):
     '''create the training model'''
     K.clear_session() # get a new session
-    image_input = Input(shape=(None, None, 3))
+    image_input = Input(shape=(None, None, constants.NUM_CHANNELS))
     h, w = input_shape
     num_anchors = len(anchors)
+    #Each anchor is rotated by 45 degrees, so each anchor spawns 2 more.
+    all_anchors = num_anchors * rotated_
 
-    y_true = [Input(shape=(h//{0:32, 1:16, 2:8}[l], w//{0:32, 1:16, 2:8}[l], \
-        num_anchors//3, num_classes+5)) for l in range(3)]
+    #YOLO uses 9 anchors, 3 in 3 different scales
+    y_true = [Input(shape=(h//{0:constants.SCALE_ * 3, 1:constants.SCALE_ * 2, 2:constants.SCALE_ * 1}[l], w//{0:constants.SCALE_ * 3, 1:constants.SCALE_ * 2, 2:constants.SCALE_ * 1}[l], \
+        all_anchors//3, num_classes+constants.N_PREDS)) for l in range(contants.N_SCALES)]
 
-    model_body = yolo_body(image_input, num_anchors//3, num_classes)
+    model_body = yolo_body(image_input, all_anchors//3, num_classes)
     print('Create YOLOv3 model with {} anchors and {} classes.'.format(num_anchors, num_classes))
 
     if load_pretrained:
